@@ -1,0 +1,1129 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Production Order Gantt Chart</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --day-width: 48px;
+      --row-height: 64px;
+      --label-width: 220px;
+      --primary: 217 91% 60%;
+      --primary-foreground: 0 0% 100%;
+      --background: 210 40% 98%;
+      --foreground: 222 47% 11%;
+      --card: 0 0% 100%;
+      --card-foreground: 222 47% 11%;
+      --border: 214 32% 91%;
+      --muted: 210 40% 96%;
+      --muted-foreground: 215 16% 47%;
+      --gantt-blue: 217 91% 60%;
+      --gantt-emerald: 160 84% 39%;
+      --gantt-amber: 38 92% 50%;
+      --gantt-rose: 350 89% 60%;
+      --gantt-violet: 263 70% 50%;
+      --gantt-cyan: 186 94% 41%;
+      --gantt-orange: 25 95% 53%;
+      --gantt-teal: 168 76% 42%;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+      background: hsl(var(--background));
+      color: hsl(var(--foreground));
+      min-height: 100vh;
+      padding: 24px;
+    }
+
+    .container {
+      max-width: 1600px;
+      margin: 0 auto;
+      height: calc(100vh - 48px);
+      display: flex;
+      flex-direction: column;
+    }
+
+    /* Header */
+    .header {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      margin-bottom: 24px;
+    }
+
+    .header-left {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .header-icon {
+      width: 52px;
+      height: 52px;
+      background: hsl(var(--primary) / 0.1);
+      border-radius: 12px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .header-icon svg {
+      width: 28px;
+      height: 28px;
+      color: hsl(var(--primary));
+    }
+
+    .header-title {
+      font-size: 24px;
+      font-weight: 700;
+      color: hsl(var(--foreground));
+    }
+
+    .header-subtitle {
+      font-size: 14px;
+      color: hsl(var(--muted-foreground));
+    }
+
+    .header-stats {
+      display: flex;
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+
+    .nav-controls {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .nav-btn {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      width: 36px;
+      height: 36px;
+      background: hsl(var(--card));
+      border: 1px solid hsl(var(--border));
+      border-radius: 8px;
+      cursor: pointer;
+      transition: all 0.2s;
+      color: hsl(var(--foreground));
+    }
+
+    .nav-btn:hover {
+      background: hsl(var(--muted));
+      border-color: hsl(var(--primary) / 0.3);
+    }
+
+    .nav-btn svg {
+      width: 18px;
+      height: 18px;
+    }
+
+    .today-btn {
+      padding: 8px 16px;
+      background: hsl(var(--primary));
+      border: none;
+      border-radius: 8px;
+      color: white;
+      font-size: 13px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .today-btn:hover {
+      background: hsl(217 91% 50%);
+    }
+
+    .stat-badge {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 16px;
+      background: hsl(var(--card));
+      border: 1px solid hsl(var(--border));
+      border-radius: 8px;
+      font-size: 14px;
+      font-weight: 500;
+    }
+
+    .stat-badge.primary {
+      background: hsl(var(--primary) / 0.1);
+      border-color: hsl(var(--primary) / 0.2);
+      color: hsl(var(--primary));
+    }
+
+    .stat-badge .dot {
+      width: 8px;
+      height: 8px;
+      background: hsl(var(--primary));
+      border-radius: 50%;
+      animation: pulse 2s infinite;
+    }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.5; }
+    }
+
+    /* Gantt Container */
+    .gantt-container {
+      flex: 1;
+      background: hsl(var(--card));
+      border: 1px solid hsl(var(--border));
+      border-radius: 12px;
+      overflow: auto;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+    }
+
+    .gantt-inner {
+      min-width: fit-content;
+    }
+
+    /* Timeline */
+    .timeline {
+      display: flex;
+      position: sticky;
+      top: 0;
+      background: hsl(var(--muted));
+      border-bottom: 1px solid hsl(var(--border));
+      z-index: 20;
+    }
+
+    .timeline-label {
+      width: var(--label-width);
+      min-width: var(--label-width);
+      padding: 12px 16px;
+      font-weight: 600;
+      font-size: 13px;
+      color: hsl(var(--muted-foreground));
+      border-right: 1px solid hsl(var(--border));
+      display: flex;
+      align-items: center;
+    }
+
+    .timeline-days {
+      display: flex;
+    }
+
+    .timeline-day {
+      width: var(--day-width);
+      min-width: var(--day-width);
+      padding: 8px 0;
+      text-align: center;
+      border-left: 1px solid hsl(var(--border) / 0.5);
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+
+    .timeline-day.weekend {
+      background: hsl(var(--muted));
+    }
+
+    .timeline-day.today {
+      background: hsl(var(--primary) / 0.1);
+    }
+
+    .timeline-day.month-start {
+      border-left: 2px solid hsl(var(--primary) / 0.3);
+    }
+
+    .timeline-day .month {
+      font-size: 10px;
+      font-weight: 600;
+      color: hsl(var(--primary));
+      text-transform: uppercase;
+    }
+
+    .timeline-day .weekday {
+      font-size: 10px;
+      color: hsl(var(--muted-foreground));
+      text-transform: uppercase;
+    }
+
+    .timeline-day .date {
+      font-size: 14px;
+      font-weight: 600;
+      color: hsl(var(--foreground));
+    }
+
+    /* Rows */
+    .gantt-row {
+      display: flex;
+      border-bottom: 1px solid hsl(var(--border) / 0.5);
+      position: relative;
+    }
+
+    .gantt-row:hover {
+      background: hsl(var(--muted) / 0.3);
+    }
+
+    .row-label {
+      width: var(--label-width);
+      min-width: var(--label-width);
+      padding: 12px 16px;
+      border-right: 1px solid hsl(var(--border));
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      gap: 4px;
+      background: hsl(var(--card));
+      position: sticky;
+      left: 0;
+      z-index: 10;
+    }
+
+    .row-label .order-id {
+      font-weight: 600;
+      font-size: 14px;
+      color: hsl(var(--foreground));
+    }
+
+    .row-label .product {
+      font-size: 12px;
+      color: hsl(var(--muted-foreground));
+    }
+
+    .row-label .meta {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-top: 2px;
+    }
+
+    .row-label .quantity {
+      font-size: 11px;
+      color: hsl(var(--muted-foreground));
+    }
+
+    .status-badge {
+      font-size: 10px;
+      padding: 2px 8px;
+      border-radius: 9999px;
+      font-weight: 500;
+      text-transform: capitalize;
+    }
+
+    .status-badge.in-progress {
+      background: hsl(var(--gantt-blue) / 0.1);
+      color: hsl(var(--gantt-blue));
+    }
+
+    .status-badge.pending {
+      background: hsl(var(--gantt-amber) / 0.1);
+      color: hsl(var(--gantt-amber));
+    }
+
+    .status-badge.completed {
+      background: hsl(var(--gantt-emerald) / 0.1);
+      color: hsl(var(--gantt-emerald));
+    }
+
+    .row-cells {
+      display: flex;
+      position: relative;
+      flex: 1;
+    }
+
+    .row-cell {
+      width: var(--day-width);
+      min-width: var(--day-width);
+      height: var(--row-height);
+      border-left: 1px solid hsl(var(--border) / 0.3);
+    }
+
+    .row-cell.weekend {
+      background: hsl(var(--muted) / 0.5);
+    }
+
+    .row-cell.today {
+      background: hsl(var(--primary) / 0.05);
+    }
+
+    /* Gantt Bar */
+    .gantt-bar {
+      position: absolute;
+      top: 12px;
+      height: 40px;
+      border-radius: 8px;
+      cursor: grab;
+      display: flex;
+      align-items: center;
+      padding: 0 10px;
+      font-size: 12px;
+      font-weight: 500;
+      color: white;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+      transition: box-shadow 0.2s, transform 0.1s;
+      user-select: none;
+      z-index: 5;
+    }
+
+    .gantt-bar:hover {
+      box-shadow: 0 4px 16px rgba(0,0,0,0.2);
+    }
+
+    .gantt-bar.dragging {
+      cursor: grabbing;
+      box-shadow: 0 8px 24px rgba(0,0,0,0.3);
+      transform: scale(1.02);
+      z-index: 15;
+    }
+
+    .gantt-bar .bar-content {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex: 1;
+      overflow: hidden;
+    }
+
+    .gantt-bar .bar-id {
+      font-weight: 600;
+      white-space: nowrap;
+    }
+
+    .gantt-bar .bar-name {
+      opacity: 0.9;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .gantt-bar .drag-handle {
+      width: 4px;
+      height: 20px;
+      background: rgba(255,255,255,0.4);
+      border-radius: 2px;
+      cursor: grab;
+      margin-right: 8px;
+      flex-shrink: 0;
+    }
+
+    .gantt-bar .edit-btn {
+      background: rgba(255,255,255,0.2);
+      border: none;
+      border-radius: 4px;
+      padding: 4px 8px;
+      color: white;
+      font-size: 11px;
+      cursor: pointer;
+      margin-left: 8px;
+      flex-shrink: 0;
+      transition: background 0.2s;
+    }
+
+    .gantt-bar .edit-btn:hover {
+      background: rgba(255,255,255,0.3);
+    }
+
+    .gantt-bar .resize-handle {
+      position: absolute;
+      right: 0;
+      top: 0;
+      bottom: 0;
+      width: 8px;
+      cursor: ew-resize;
+      background: linear-gradient(to right, transparent, rgba(255,255,255,0.3));
+      border-radius: 0 8px 8px 0;
+    }
+
+    /* Bar Colors */
+    .bar-blue { background: linear-gradient(135deg, hsl(217 91% 60%), hsl(217 91% 50%)); }
+    .bar-emerald { background: linear-gradient(135deg, hsl(160 84% 39%), hsl(160 84% 32%)); }
+    .bar-amber { background: linear-gradient(135deg, hsl(38 92% 50%), hsl(38 92% 42%)); }
+    .bar-rose { background: linear-gradient(135deg, hsl(350 89% 60%), hsl(350 89% 50%)); }
+    .bar-violet { background: linear-gradient(135deg, hsl(263 70% 50%), hsl(263 70% 42%)); }
+    .bar-cyan { background: linear-gradient(135deg, hsl(186 94% 41%), hsl(186 94% 34%)); }
+    .bar-orange { background: linear-gradient(135deg, hsl(25 95% 53%), hsl(25 95% 45%)); }
+    .bar-teal { background: linear-gradient(135deg, hsl(168 76% 42%), hsl(168 76% 35%)); }
+
+    /* Legend */
+    .legend {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 16px;
+      margin-top: 16px;
+      padding: 12px 16px;
+      background: hsl(var(--card));
+      border: 1px solid hsl(var(--border));
+      border-radius: 8px;
+    }
+
+    .legend-item {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 12px;
+      color: hsl(var(--muted-foreground));
+    }
+
+    .legend-color {
+      width: 16px;
+      height: 16px;
+      border-radius: 4px;
+    }
+
+    /* Modal */
+    .modal-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.5);
+      display: none;
+      align-items: center;
+      justify-content: center;
+      z-index: 100;
+    }
+
+    .modal-overlay.open {
+      display: flex;
+    }
+
+    .modal {
+      background: hsl(var(--card));
+      border-radius: 12px;
+      padding: 24px;
+      width: 90%;
+      max-width: 480px;
+      box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+    }
+
+    .modal-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 20px;
+    }
+
+    .modal-title {
+      font-size: 18px;
+      font-weight: 600;
+    }
+
+    .modal-close {
+      background: none;
+      border: none;
+      font-size: 24px;
+      cursor: pointer;
+      color: hsl(var(--muted-foreground));
+      line-height: 1;
+    }
+
+    .modal-body {
+      display: grid;
+      gap: 16px;
+    }
+
+    .form-row {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+    }
+
+    .form-group {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .form-group.full {
+      grid-column: span 2;
+    }
+
+    .form-label {
+      font-size: 12px;
+      font-weight: 500;
+      color: hsl(var(--muted-foreground));
+    }
+
+    .form-input {
+      padding: 10px 12px;
+      border: 1px solid hsl(var(--border));
+      border-radius: 8px;
+      font-size: 14px;
+      font-family: inherit;
+      background: hsl(var(--background));
+      color: hsl(var(--foreground));
+      transition: border-color 0.2s, box-shadow 0.2s;
+    }
+
+    .form-input:focus {
+      outline: none;
+      border-color: hsl(var(--primary));
+      box-shadow: 0 0 0 3px hsl(var(--primary) / 0.1);
+    }
+
+    .form-input:disabled {
+      background: hsl(var(--muted));
+      cursor: not-allowed;
+    }
+
+    .form-select {
+      padding: 10px 12px;
+      border: 1px solid hsl(var(--border));
+      border-radius: 8px;
+      font-size: 14px;
+      font-family: inherit;
+      background: hsl(var(--background));
+      color: hsl(var(--foreground));
+      cursor: pointer;
+    }
+
+    .duration-display {
+      padding: 10px 12px;
+      background: hsl(var(--muted));
+      border-radius: 8px;
+      font-size: 14px;
+      font-weight: 500;
+      color: hsl(var(--primary));
+    }
+
+    .modal-footer {
+      display: flex;
+      gap: 12px;
+      margin-top: 24px;
+    }
+
+    .btn {
+      flex: 1;
+      padding: 12px 20px;
+      border-radius: 8px;
+      font-size: 14px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 0.2s;
+      font-family: inherit;
+    }
+
+    .btn-secondary {
+      background: hsl(var(--muted));
+      border: 1px solid hsl(var(--border));
+      color: hsl(var(--foreground));
+    }
+
+    .btn-secondary:hover {
+      background: hsl(var(--border));
+    }
+
+    .btn-primary {
+      background: hsl(var(--primary));
+      border: none;
+      color: white;
+    }
+
+    .btn-primary:hover {
+      background: hsl(217 91% 50%);
+    }
+  </style>
+</head>
+<body>
+
+<div class="container">
+  <!-- Header -->
+  <div class="header">
+    <div class="header-left">
+      <div class="header-icon">
+        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"/>
+        </svg>
+      </div>
+      <div>
+        <h1 class="header-title">Production Planning</h1>
+        <p class="header-subtitle" id="scheduleSubtitle">Loading...</p>
+      </div>
+    </div>
+    <div class="nav-controls">
+      <button class="nav-btn" onclick="navigatePrev()" title="Previous month">
+        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M15 19l-7-7 7-7"/>
+        </svg>
+      </button>
+      <button class="today-btn" onclick="navigateToday()">Today</button>
+      <button class="nav-btn" onclick="navigateNext()" title="Next month">
+        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7"/>
+        </svg>
+      </button>
+    </div>
+    <div class="header-stats">
+      <div class="stat-badge">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M3 3v18h18"/><path d="M18 17V9"/><path d="M13 17V5"/><path d="M8 17v-3"/>
+        </svg>
+        <span id="totalOrders">8 Orders</span>
+      </div>
+      <div class="stat-badge primary">
+        <span class="dot"></span>
+        <span id="inProgressOrders">4 In Progress</span>
+      </div>
+      <div class="stat-badge">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/>
+        </svg>
+        <span id="pendingOrders">3 Pending</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Gantt Chart -->
+  <div class="gantt-container">
+    <div class="gantt-inner">
+      <div class="timeline" id="timeline"></div>
+      <div id="ganttBody"></div>
+    </div>
+  </div>
+
+  <!-- Legend -->
+  <div class="legend">
+    <div class="legend-item"><div class="legend-color bar-blue"></div>Assembly Line A</div>
+    <div class="legend-item"><div class="legend-color bar-emerald"></div>Assembly Line B</div>
+    <div class="legend-item"><div class="legend-color bar-amber"></div>Packaging</div>
+    <div class="legend-item"><div class="legend-color bar-rose"></div>Quality Control</div>
+    <div class="legend-item"><div class="legend-color bar-violet"></div>Machining</div>
+    <div class="legend-item"><div class="legend-color bar-cyan"></div>Welding</div>
+    <div class="legend-item"><div class="legend-color bar-orange"></div>Painting</div>
+    <div class="legend-item"><div class="legend-color bar-teal"></div>Finishing</div>
+  </div>
+</div>
+
+<!-- Edit Modal -->
+<div class="modal-overlay" id="modalOverlay">
+  <div class="modal">
+    <div class="modal-header">
+      <h2 class="modal-title">Edit Production Order</h2>
+      <button class="modal-close" onclick="closeModal()">&times;</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">Order ID</label>
+          <input type="text" class="form-input" id="editId" disabled>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Product</label>
+          <input type="text" class="form-input" id="editProduct">
+        </div>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Order Name</label>
+        <input type="text" class="form-input" id="editName">
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">Start Date</label>
+          <input type="date" class="form-input" id="editStart">
+        </div>
+        <div class="form-group">
+          <label class="form-label">End Date</label>
+          <input type="date" class="form-input" id="editEnd">
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">Duration</label>
+          <div class="duration-display" id="editDuration">0 days</div>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Quantity</label>
+          <input type="number" class="form-input" id="editQuantity" min="1">
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">Status</label>
+          <select class="form-select" id="editStatus">
+            <option value="pending">Pending</option>
+            <option value="in-progress">In Progress</option>
+            <option value="completed">Completed</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Priority</label>
+          <select class="form-select" id="editPriority">
+            <option value="low">Low</option>
+            <option value="medium">Medium</option>
+            <option value="high">High</option>
+          </select>
+        </div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" onclick="closeModal()">Cancel</button>
+      <button class="btn btn-primary" onclick="saveOrder()">Save Changes</button>
+    </div>
+  </div>
+</div>
+
+<script>
+const DAY_MS = 86400000;
+let baseDate = new Date();
+baseDate.setDate(1); // Start from first of current month
+baseDate.setHours(0, 0, 0, 0);
+const DAYS = 31;
+const DAY_WIDTH = 48;
+const LABEL_WIDTH = 220;
+
+const barColors = ['bar-blue', 'bar-emerald', 'bar-amber', 'bar-rose', 'bar-violet', 'bar-cyan', 'bar-orange', 'bar-teal'];
+
+// Generate dynamic dates based on current month
+function generateOrderDates() {
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = String(now.getMonth() + 1).padStart(2, '0');
+  
+  return [
+    { id: "PW-1001", product: "Widget A", name: "Widget A", startDate: `${year}-${month}-02`, endDate: `${year}-${month}-08`, quantity: 500, status: "in-progress", priority: "high" },
+    { id: "PW-1002", product: "Widget B", name: "Widget B", startDate: `${year}-${month}-05`, endDate: `${year}-${month}-12`, quantity: 300, status: "pending", priority: "medium" },
+    { id: "PW-1003", product: "Gadget X", name: "Gadget X", startDate: `${year}-${month}-10`, endDate: `${year}-${month}-18`, quantity: 150, status: "in-progress", priority: "high" },
+    { id: "PW-1004", product: "Component C", name: "Bulk Production", startDate: `${year}-${month}-03`, endDate: `${year}-${month}-09`, quantity: 1000, status: "in-progress", priority: "low" },
+    { id: "PW-1005", product: "Assembly D", name: "Rush Order", startDate: `${year}-${month}-15`, endDate: `${year}-${month}-22`, quantity: 200, status: "pending", priority: "high" },
+    { id: "PW-1006", product: "Part E", name: "Replacement Parts", startDate: `${year}-${month}-08`, endDate: `${year}-${month}-14`, quantity: 750, status: "in-progress", priority: "medium" },
+    { id: "PW-1007", product: "Module F", name: "New Product Line", startDate: `${year}-${month}-20`, endDate: `${year}-${month}-28`, quantity: 100, status: "pending", priority: "medium" },
+    { id: "PW-1008", product: "System G", name: "Quality Batch", startDate: `${year}-${month}-12`, endDate: `${year}-${month}-19`, quantity: 450, status: "completed", priority: "low" }
+  ];
+}
+
+let productionOrders = generateOrderDates();
+
+let editingOrderIndex = null;
+
+function getDayOfWeek(date) {
+  return ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'][date.getDay()];
+}
+
+function getMonthName(date) {
+  return ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'][date.getMonth()];
+}
+
+function isWeekend(date) {
+  const day = date.getDay();
+  return day === 0 || day === 6;
+}
+
+function isToday(date) {
+  const today = new Date();
+  return date.toDateString() === today.toDateString();
+}
+
+function getFullMonthName(date) {
+  return ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'][date.getMonth()];
+}
+
+function updateScheduleSubtitle() {
+  const endDate = new Date(baseDate);
+  endDate.setDate(endDate.getDate() + DAYS - 1);
+  
+  const startMonth = getFullMonthName(baseDate);
+  const endMonth = getFullMonthName(endDate);
+  const startYear = baseDate.getFullYear();
+  const endYear = endDate.getFullYear();
+  
+  let subtitle;
+  if (startMonth === endMonth && startYear === endYear) {
+    subtitle = `${startMonth} ${startYear} Schedule`;
+  } else if (startYear === endYear) {
+    subtitle = `${startMonth} - ${endMonth} ${startYear} Schedule`;
+  } else {
+    subtitle = `${startMonth} ${startYear} - ${endMonth} ${endYear} Schedule`;
+  }
+  
+  document.getElementById('scheduleSubtitle').textContent = subtitle;
+}
+
+function navigatePrev() {
+  baseDate.setMonth(baseDate.getMonth() - 1);
+  refreshChart();
+}
+
+function navigateNext() {
+  baseDate.setMonth(baseDate.getMonth() + 1);
+  refreshChart();
+}
+
+function navigateToday() {
+  baseDate = new Date();
+  baseDate.setDate(1);
+  baseDate.setHours(0, 0, 0, 0);
+  refreshChart();
+}
+
+function refreshChart() {
+  updateScheduleSubtitle();
+  renderTimeline();
+  renderGantt();
+}
+
+function updateStats() {
+  const total = productionOrders.length;
+  const inProgress = productionOrders.filter(o => o.status === 'in-progress').length;
+  const pending = productionOrders.filter(o => o.status === 'pending').length;
+  
+  document.getElementById('totalOrders').textContent = `${total} Orders`;
+  document.getElementById('inProgressOrders').textContent = `${inProgress} In Progress`;
+  document.getElementById('pendingOrders').textContent = `${pending} Pending`;
+}
+
+function renderTimeline() {
+  const timeline = document.getElementById('timeline');
+  let html = '<div class="timeline-label">Production Orders</div><div class="timeline-days">';
+  
+  for (let i = 0; i < DAYS; i++) {
+    const date = new Date(baseDate);
+    date.setDate(date.getDate() + i);
+    
+    const isWeekendDay = isWeekend(date);
+    const isTodayDay = isToday(date);
+    const isMonthStart = date.getDate() === 1;
+    
+    let classes = 'timeline-day';
+    if (isWeekendDay) classes += ' weekend';
+    if (isTodayDay) classes += ' today';
+    if (isMonthStart) classes += ' month-start';
+    
+    html += `<div class="${classes}">`;
+    if (isMonthStart || i === 0) {
+      html += `<span class="month">${getMonthName(date)}</span>`;
+    }
+    html += `<span class="weekday">${getDayOfWeek(date)}</span>`;
+    html += `<span class="date">${date.getDate()}</span>`;
+    html += '</div>';
+  }
+  
+  html += '</div>';
+  timeline.innerHTML = html;
+}
+
+function renderGantt() {
+  const body = document.getElementById('ganttBody');
+  body.innerHTML = '';
+  
+  productionOrders.forEach((order, index) => {
+    const row = document.createElement('div');
+    row.className = 'gantt-row';
+    
+    // Label
+    let labelHtml = `
+      <div class="row-label">
+        <span class="order-id">${order.id}</span>
+        <span class="product">${order.product}</span>
+        <div class="meta">
+          <span class="quantity">${order.quantity} units</span>
+          <span class="status-badge ${order.status}">${order.status.replace('-', ' ')}</span>
+        </div>
+      </div>
+    `;
+    
+    // Cells
+    let cellsHtml = '<div class="row-cells">';
+    for (let i = 0; i < DAYS; i++) {
+      const date = new Date(baseDate);
+      date.setDate(date.getDate() + i);
+      
+      let classes = 'row-cell';
+      if (isWeekend(date)) classes += ' weekend';
+      if (isToday(date)) classes += ' today';
+      
+      cellsHtml += `<div class="${classes}"></div>`;
+    }
+    cellsHtml += '</div>';
+    
+    row.innerHTML = labelHtml + cellsHtml;
+    
+    // Add bar
+    const startDate = new Date(order.startDate);
+    const endDate = new Date(order.endDate);
+    const startOffset = Math.floor((startDate - baseDate) / DAY_MS);
+    const duration = Math.ceil((endDate - startDate) / DAY_MS) + 1;
+    
+    const bar = document.createElement('div');
+    bar.className = `gantt-bar ${barColors[index % barColors.length]}`;
+    bar.style.left = `${startOffset * DAY_WIDTH}px`;
+    bar.style.width = `${duration * DAY_WIDTH - 8}px`;
+    bar.dataset.index = index;
+    
+    bar.innerHTML = `
+      <div class="drag-handle"></div>
+      <div class="bar-content">
+        <span class="bar-id">${order.id}</span>
+        <span class="bar-name">${order.name}</span>
+      </div>
+      <button class="edit-btn">Edit</button>
+      <div class="resize-handle"></div>
+    `;
+    
+    // Add event listeners
+    enableDrag(bar, index);
+    enableResize(bar, index);
+    bar.querySelector('.edit-btn').addEventListener('click', (e) => {
+      e.stopPropagation();
+      openModal(index);
+    });
+    
+    row.querySelector('.row-cells').appendChild(bar);
+    body.appendChild(row);
+  });
+}
+
+function enableDrag(bar, index) {
+  let startX, initialLeft;
+  
+  const onMouseDown = (e) => {
+    if (e.target.classList.contains('resize-handle') || e.target.classList.contains('edit-btn')) return;
+    e.preventDefault();
+    
+    startX = e.clientX;
+    initialLeft = bar.offsetLeft;
+    bar.classList.add('dragging');
+    
+    document.addEventListener('mousemove', onMouseMove);
+    document.addEventListener('mouseup', onMouseUp);
+  };
+  
+  const onMouseMove = (e) => {
+    const dx = e.clientX - startX;
+    const newLeft = Math.max(0, Math.round((initialLeft + dx) / DAY_WIDTH) * DAY_WIDTH);
+    bar.style.left = `${newLeft}px`;
+  };
+  
+  const onMouseUp = () => {
+    bar.classList.remove('dragging');
+    document.removeEventListener('mousemove', onMouseMove);
+    document.removeEventListener('mouseup', onMouseUp);
+    
+    updateOrderFromBar(bar, index);
+  };
+  
+  bar.addEventListener('mousedown', onMouseDown);
+}
+
+function enableResize(bar, index) {
+  const handle = bar.querySelector('.resize-handle');
+  let startX, startWidth;
+  
+  const onMouseDown = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    
+    startX = e.clientX;
+    startWidth = bar.offsetWidth;
+    bar.classList.add('dragging');
+    
+    document.addEventListener('mousemove', onMouseMove);
+    document.addEventListener('mouseup', onMouseUp);
+  };
+  
+  const onMouseMove = (e) => {
+    const dx = e.clientX - startX;
+    const newWidth = Math.max(DAY_WIDTH, Math.round((startWidth + dx) / DAY_WIDTH) * DAY_WIDTH - 8);
+    bar.style.width = `${newWidth}px`;
+  };
+  
+  const onMouseUp = () => {
+    bar.classList.remove('dragging');
+    document.removeEventListener('mousemove', onMouseMove);
+    document.removeEventListener('mouseup', onMouseUp);
+    
+    updateOrderFromBar(bar, index);
+  };
+  
+  handle.addEventListener('mousedown', onMouseDown);
+}
+
+function updateOrderFromBar(bar, index) {
+  const order = productionOrders[index];
+  const left = bar.offsetLeft;
+  const width = bar.offsetWidth + 8;
+  
+  const startDays = Math.round(left / DAY_WIDTH);
+  const durationDays = Math.round(width / DAY_WIDTH);
+  
+  const newStart = new Date(baseDate);
+  newStart.setDate(newStart.getDate() + startDays);
+  
+  const newEnd = new Date(newStart);
+  newEnd.setDate(newEnd.getDate() + durationDays - 1);
+  
+  order.startDate = newStart.toISOString().split('T')[0];
+  order.endDate = newEnd.toISOString().split('T')[0];
+  
+  renderGantt();
+}
+
+function openModal(index) {
+  editingOrderIndex = index;
+  const order = productionOrders[index];
+  
+  document.getElementById('editId').value = order.id;
+  document.getElementById('editProduct').value = order.product;
+  document.getElementById('editName').value = order.name;
+  document.getElementById('editStart').value = order.startDate;
+  document.getElementById('editEnd').value = order.endDate;
+  document.getElementById('editQuantity').value = order.quantity;
+  document.getElementById('editStatus').value = order.status;
+  document.getElementById('editPriority').value = order.priority;
+  
+  updateDuration();
+  document.getElementById('modalOverlay').classList.add('open');
+}
+
+function closeModal() {
+  document.getElementById('modalOverlay').classList.remove('open');
+  editingOrderIndex = null;
+}
+
+function updateDuration() {
+  const start = new Date(document.getElementById('editStart').value);
+  const end = new Date(document.getElementById('editEnd').value);
+  const days = Math.ceil((end - start) / DAY_MS) + 1;
+  document.getElementById('editDuration').textContent = `${days} day${days !== 1 ? 's' : ''}`;
+}
+
+function saveOrder() {
+  if (editingOrderIndex === null) return;
+  
+  const order = productionOrders[editingOrderIndex];
+  order.product = document.getElementById('editProduct').value;
+  order.name = document.getElementById('editName').value;
+  order.startDate = document.getElementById('editStart').value;
+  order.endDate = document.getElementById('editEnd').value;
+  order.quantity = parseInt(document.getElementById('editQuantity').value);
+  order.status = document.getElementById('editStatus').value;
+  order.priority = document.getElementById('editPriority').value;
+  
+  closeModal();
+  renderGantt();
+  updateStats();
+}
+
+// Event listeners for date inputs
+document.getElementById('editStart').addEventListener('change', updateDuration);
+document.getElementById('editEnd').addEventListener('change', updateDuration);
+
+// Close modal on overlay click
+document.getElementById('modalOverlay').addEventListener('click', (e) => {
+  if (e.target === document.getElementById('modalOverlay')) {
+    closeModal();
+  }
+});
+
+// Initialize
+updateScheduleSubtitle();
+renderTimeline();
+renderGantt();
+updateStats();
+</script>
+
+</body>
+</html>
